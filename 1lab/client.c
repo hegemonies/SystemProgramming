@@ -10,44 +10,12 @@
 #include <arpa/inet.h>
 
 #define SERVER_HOST "localhost"
-#define SERVER_PORT "8080"
 
-in_addr_t create_s_addr(const char *ip_addr) {
-    int s_addr;
-    inet_pton(AF_INET, ip_addr, &s_addr);
-    return (in_addr_t) s_addr;
-}
-/*
-void bootstrap_client() {
-    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    printf("File desc of client = %d\n", socket_fd);
-    if (socket_fd == 0) {
-        perror("Socker error");
-    }
-    
-	struct sockaddr_in server_addr;
-    server_addr.sin_addr.s_addr = create_s_addr("127.0.0.1");
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(SERVER_PORT);
-
-    if (connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-		printf("Connect Failed\n");
-		exit(1);
-	}
-
-	char buffer[1024];
-	memset(buffer, '0', sizeof(buffer));
-
-    for (int i = 0; i < 5; i++) {
-        sprintf(buffer,  "%d", i);
-        write(socket_fd, buffer, sizeof(buffer));
-    }
-
-    close(socket_fd);
-}
-*/
+char *SERVER_PORT;
+char *PATH_TO_FILE;
 
 void bootstrap_client() {
+    printf("Bootstrap client");
     struct addrinfo hints, *res;
     int sock_fd;
 
@@ -81,7 +49,49 @@ void bootstrap_client() {
     close(sock_fd);
 }
 
-int main() {
+void print_help() {
+    printf("Help:\n");
+    printf("./client -p <port> -f <file>\n\n");
+    printf("-p        Port of the server\n");
+    printf("-f        Path to file\n");
+}
+
+void error_arguments() {
+    fprintf(stderr, "Error argumets\n\n");
+    print_help();
+}
+
+void client_configuration(int argc, char *argv[]) {
+    if (argc < 5) {
+        error_arguments();
+        exit(1);
+    }
+
+    int result = 0;
+
+    while ((result = getopt(argc, argv, "p:f:")) != -1) {
+        switch (result) {
+        case 'p':
+            SERVER_PORT = (char *) calloc(sizeof(optarg), sizeof(char));
+            SERVER_PORT = optarg;
+            break;
+
+        case 'f':
+            PATH_TO_FILE = (char *) calloc(sizeof(optarg), sizeof(char));
+            PATH_TO_FILE = optarg;
+            break;
+
+        default:
+            error_arguments();
+            break;
+        }
+    }
+
+    printf("Send %s to localhost:%s\n", PATH_TO_FILE, SERVER_PORT);
+}
+
+int main(int argc, char *argv[]) {
+    client_configure(argc, argv);
     bootstrap_client();
     printf("Finish client");
     return 0;

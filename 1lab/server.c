@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -59,29 +60,45 @@ void bootstrap_server() {
     struct sockaddr_storage client_addr;
     socklen_t client_addr_size = sizeof client_addr;
 
+    int count_clients = 0;
+
     while(1) {
+        printf("Waiting for clients\n");
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
         printf("New client with fd = %d\n", client_fd);
         if (client_fd < 0) {
             perror("Accept error");
             continue;
         }
+        count_clients++;
 
-        int recv_buf_size = 1024;
-        char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
-        if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
-            perror("Receive data error");
-            continue;
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("Error fork");
+        } else if (pid == 0) {
+            printf("Payload...");
+            int recv_buf_size = 1024;
+            char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
+            if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
+                perror("Receive data error");
+                continue;
+            }
+            printf("Receive data: %s.\n", recv_buf);
+
+            char *send_buf = "hello";
+            if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
+                perror("Send data error");
+                continue;
+            }
+
+            close(client_fd);
+            exit(0);
+        } else {
+            if (count_clients > 9) {
+                wait(NULL);
+            }
         }
-        printf("Receive data: %s.\n", recv_buf);
-
-        char *send_buf = "hello";
-        if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
-            perror("Send data error");
-            continue;
-        }
-
-        close(client_fd);
     }
 
     close(server_fd);
@@ -130,7 +147,7 @@ void server_configuration(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    server_configuration(argc, argv);
+    server_configure(argc, argv);
     bootstrap_server();
 
     return 0;
