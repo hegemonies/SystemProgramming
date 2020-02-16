@@ -76,6 +76,7 @@ void bootstrap_client() {
         perror("Send data error");
         exit(1);
     }
+    printf("Receive: %s.\n", recv_buf);
 
     close(sock_fd);
 }
