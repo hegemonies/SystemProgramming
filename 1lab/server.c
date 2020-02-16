@@ -15,6 +15,35 @@
 char *SERVER_PORT;
 char *PATH_STORAGE;
 
+void payload(int client_fd) {
+    printf("Payload on proc with pid #%d\n", getpid());
+    int recv_buf_size = 1024;
+    char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
+    if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
+        perror("Receive data error");
+        return;
+    }
+    printf("Receive data: %s.\n", recv_buf);
+
+    char *send_buf = "hello";
+    if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
+        perror("Send data error");
+        return;
+    }
+
+    close(client_fd);
+    exit(0);
+}
+
+void pids_gc(int *count_clients) {
+    if (*count_clients > PID_LIMIT) {
+        printf("Start waiting for pids\n");
+        while (wait(NULL) > 0);
+        printf("Finish waiting for pids\n");
+        *count_clients = 0;
+    }
+}
+
 void start_server(int server_fd) {
     printf("Start server on pid #%d\n", getpid());
 
@@ -39,30 +68,9 @@ void start_server(int server_fd) {
         if (pid < 0) {
             perror("Error fork");
         } else if (pid == 0) {
-            printf("Payload on proc with pid #%d\n", getpid());
-            int recv_buf_size = 1024;
-            char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
-            if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
-                perror("Receive data error");
-                continue;
-            }
-            printf("Receive data: %s.\n", recv_buf);
-
-            char *send_buf = "hello";
-            if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
-                perror("Send data error");
-                continue;
-            }
-
-            close(client_fd);
-            exit(0);
+            payload(client_fd);
         } else {
-            if (count_clients > PID_LIMIT) {
-                printf("Start waiting for pids\n");
-                while (wait(NULL) > 0);
-                printf("Finish waiting for pids\n");
-                count_clients = 0;
-            }
+            pids_gc(&count_clients);
         }
     }
 }
