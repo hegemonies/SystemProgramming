@@ -10,17 +10,65 @@
 #include <string.h>
 
 #define SERVER_HOST "localhost"
+#define PID_LIMIT 5
 
 char *SERVER_PORT;
 char *PATH_STORAGE;
 
-in_addr_t create_s_addr(const char *ip_addr) {
-    int s_addr;
-    inet_pton(AF_INET, ip_addr, &s_addr);
-    return (in_addr_t) s_addr;
+void start_server(int server_fd) {
+    printf("Start server on pid #%d\n", getpid());
+
+    int client_fd;
+    struct sockaddr_storage client_addr;
+    socklen_t client_addr_size = sizeof client_addr;
+
+    int count_clients = 0;
+
+    while(1) {
+        printf("Waiting for clients\n");
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
+        printf("New client with fd = %d\n", client_fd);
+        if (client_fd < 0) {
+            perror("Accept error");
+            continue;
+        }
+        count_clients++;
+
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("Error fork");
+        } else if (pid == 0) {
+            printf("Payload on proc with pid #%d\n", getpid());
+            int recv_buf_size = 1024;
+            char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
+            if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
+                perror("Receive data error");
+                continue;
+            }
+            printf("Receive data: %s.\n", recv_buf);
+
+            char *send_buf = "hello";
+            if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
+                perror("Send data error");
+                continue;
+            }
+
+            close(client_fd);
+            exit(0);
+        } else {
+            if (count_clients > PID_LIMIT) {
+                printf("Start waiting for pids\n");
+                while (wait(NULL) > 0);
+                printf("Finish waiting for pids\n");
+                count_clients = 0;
+            }
+        }
+    }
 }
 
 void bootstrap_server() {
+    printf("Bootstrap server");
     struct addrinfo hints, *server_info;
 
     memset(&hints, 0, sizeof hints);
@@ -56,50 +104,7 @@ void bootstrap_server() {
         exit(1);
     }
     
-    int client_fd;
-    struct sockaddr_storage client_addr;
-    socklen_t client_addr_size = sizeof client_addr;
-
-    int count_clients = 0;
-
-    while(1) {
-        printf("Waiting for clients\n");
-        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
-        printf("New client with fd = %d\n", client_fd);
-        if (client_fd < 0) {
-            perror("Accept error");
-            continue;
-        }
-        count_clients++;
-
-        pid_t pid = fork();
-
-        if (pid < 0) {
-            perror("Error fork");
-        } else if (pid == 0) {
-            printf("Payload...");
-            int recv_buf_size = 1024;
-            char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
-            if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
-                perror("Receive data error");
-                continue;
-            }
-            printf("Receive data: %s.\n", recv_buf);
-
-            char *send_buf = "hello";
-            if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
-                perror("Send data error");
-                continue;
-            }
-
-            close(client_fd);
-            exit(0);
-        } else {
-            if (count_clients > 9) {
-                wait(NULL);
-            }
-        }
-    }
+    start_server(server_fd);
 
     close(server_fd);
     freeaddrinfo(server_info);
