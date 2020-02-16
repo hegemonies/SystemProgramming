@@ -1,8 +1,22 @@
 
-all:
-	gcc main.c -o main
+all: clean
+	@echo "Compiling server.c"
+	gcc -Wall server.c -o server -g
 
-.PHONY: server
+	@echo "Compiling client.c"
+	gcc -Wall client.c -o client -g
+
+.PHONY: server, client
 
 server:
-	gcc server.c -o server
+	rm -rf server
+	@echo "Compiling server.c"
+	gcc -Wall server.c -o server -g
+
+client:
+	rm -rf client
+	@echo "Compiling client.c"
+	gcc -Wall client.c -o client -g
+
+clean:
+	rm -rf server client
