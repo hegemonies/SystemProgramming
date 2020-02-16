@@ -61,7 +61,7 @@ void error_arguments() {
     print_help();
 }
 
-void client_configuration(int argc, char *argv[]) {
+void client_configure(int argc, char *argv[]) {
     if (argc < 5) {
         error_arguments();
         exit(1);

@@ -117,7 +117,7 @@ void error_arguments() {
     print_help();
 }
 
-void server_configuration(int argc, char *argv[]) {
+void server_configure(int argc, char *argv[]) {
     if (argc < 5) {
         error_arguments();
         exit(1);
