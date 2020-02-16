@@ -8,28 +8,74 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <dirent.h>
+#include "protocol.h"
 
 #define SERVER_HOST "localhost"
 #define PID_LIMIT 5
 
 char *SERVER_PORT;
 char *PATH_STORAGE;
+struct dirent *pDirent;
+DIR *pDir;
+
+void save_file(char *filename, char *data) {
+    // TODO: save filename with data to PATH_STORAGE
+}
+
+void get_filename_and_size_from(char *recv_buf, char *filename, int *file_size) {
+    char *lexem = strtok(recv_buf, ";");
+    printf("Get lexem: %s\n", lexem);
+
+    if (lexem == NULL) {
+        filename = NULL;
+        file_size = NULL;
+        return;
+    }
+
+    filename = malloc(sizeof(char) * strlen(lexem));
+    memcpy(filename, lexem, strlen(lexem));
+    printf("Filename: %s\n", filename);
+
+    lexem = strtok(NULL, ";");
+    printf("Get lexem: %s\n", lexem);
+
+    if (lexem == NULL) {
+        filename = NULL;
+        file_size = NULL;
+        return;
+    }
+
+    file_size = malloc(sizeof(int) * 1);
+    *file_size = atoi(lexem);
+    printf("File size: %d\n", *file_size);
+}
 
 void payload(int client_fd) {
     printf("Payload on proc with pid #%d\n", getpid());
+
+    // Receive meta data with info about size and name of file
     int recv_buf_size = 1024;
     char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
     if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
         perror("Receive data error");
         return;
     }
-    printf("Receive data: %s.\n", recv_buf);
+    // printf("Receive data: %s.\n", recv_buf);
+    char *filename;
+    int *file_size;
+    get_filename_and_size_from(recv_buf, filename, file_size);
 
-    char *send_buf = "hello";
-    if (send(client_fd, send_buf, strlen(send_buf), 0) < 0) {
-        perror("Send data error");
+    if (filename == NULL || file_size == NULL) {
+        char *error_msg = "Error meta data in request.";
+        send(client_fd, error_msg, strlen(error_msg), 0);
         return;
     }
+
+    printf(" Receive meta data: %s %d\n", filename, *file_size);
+
+    char *ok_msg = "OK";
+    send(client_fd, ok_msg, strlen(ok_msg), 0);
 
     close(client_fd);
     exit(0);
@@ -148,6 +194,13 @@ void server_configure(int argc, char *argv[]) {
         case 'd':
             PATH_STORAGE = (char *) calloc(sizeof(optarg), sizeof(char));
             PATH_STORAGE = optarg;
+
+            pDir = opendir(PATH_STORAGE);
+            if (pDir == NULL) {
+                fprintf(stderr, "Cannot open directory '%s'\n", PATH_STORAGE);
+                exit(1);
+            }
+
             break;
 
         default:
