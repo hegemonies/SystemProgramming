@@ -8,14 +8,40 @@
 #include <unistd.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <math.h>
 
 #define SERVER_HOST "localhost"
 
 char *SERVER_PORT;
 char *PATH_TO_FILE;
 
-void read_file() {
+void read_file(char **file_data, int *file_size) {
+    FILE *file = fopen(PATH_TO_FILE, "r");
 
+    if (file == NULL) {
+        fclose(file);
+        printf("Error read file: %s\n", PATH_TO_FILE);
+        exit(1);
+    }
+
+    fseek(file, 0, SEEK_END);
+    *file_size = ftell(file);
+    printf("Filesize = %d\n", *file_size);
+    rewind(file);
+
+    *file_data = calloc(sizeof(char), *file_size + 1);
+
+    int read_size = fread(*file_data, sizeof(char), *file_size, file);
+    printf("Readsize = %d\n", read_size);
+    // *file_data[*file_size - 1] = '\0';
+
+    if (*file_size != read_size) {
+        fclose(file);
+        printf("Error2 read file: %s\n", PATH_TO_FILE);
+        exit(1);
+    }
+
+    fclose(file);
 }
 
 void get_filename_from_path(char **filename) {
@@ -34,23 +60,36 @@ void get_filename_from_path(char **filename) {
     printf("Filename: %s\n", *filename);
 }
 
-void send_meta_data(int sock_fd) {
-    char *filename;
-    get_filename_from_path(&filename);
-    char *meta_data = "test.c;14151;";
-
+void send_meta_data(int sock_fd, char *meta_data) {
     if (send(sock_fd, meta_data, strlen(meta_data), 0) < 0) {
         perror("Send file error");
         exit(1);
     }
 
-    char *recv_buf = calloc(10, sizeof(char));
-    recv(sock_fd, recv_buf, sizeof(recv_buf), 0);
-    printf("Receive: %s\n", recv_buf);
+    // char *recv_buf = calloc(10, sizeof(char));
+    // recv(sock_fd, recv_buf, sizeof(recv_buf), 0);
+    // printf("Receive: %s\n", recv_buf);
 }
 
-void send_file(int sock_fd) {
+void create_meta_data(char **meta_data, char *filename, int file_size) {
+    char sfile_size[(int)((ceil(log10(file_size))+1)*sizeof(char))];
+    // itoa(file_size, sfile_size, 10);
+    sprintf(sfile_size, "%d", file_size);
 
+    *meta_data = calloc(sizeof(char), strlen(filename) + strlen(sfile_size) + 3);
+    strcat(*meta_data, filename);
+    strcat(*meta_data, ";");
+    strcat(*meta_data, sfile_size);
+    strcat(*meta_data, ";");
+    strcat(*meta_data, "\0");
+}
+
+void send_file(int sock_fd, char *file_data, int file_size) {
+    if (send(sock_fd, file_data, file_size, 0) < 0) {
+        perror("Error send file");
+        exit(1);
+    }
+    printf("File has been send successfully\n");
 }
 
 void bootstrap_client() {
@@ -71,23 +110,48 @@ void bootstrap_client() {
         perror("Connect error");
     }
 
-    // char *buf = "hello";
-    // if (send(sock_fd, buf, sizeof buf, 0) < 0) {
-    //     perror("Send data error");
-    //     exit(1);
-    // }
+    char *filename;
+    get_filename_from_path(&filename);
+    
+    char *file_data;
+    int file_size;
+    read_file(&file_data, &file_size);
 
-    // int recv_buf_size = 1024;
-    // char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
-    // if (recv(sock_fd, recv_buf, recv_buf_size, 0) < 0) {
-    //     perror("Send data error");
-    //     exit(1);
-    // }
-    // printf("Receive: %s.\n", recv_buf);
+    char *meta_data; // todo: add concat filename and filesize
+    create_meta_data(&meta_data, filename, file_size);
+    printf("Metadata: %s\n", meta_data);
 
-    read_file();
-    send_meta_data(sock_fd);
-    send_file(sock_fd);
+    send_meta_data(sock_fd, meta_data);
+
+    int buf_size = 16;
+    char *buf = calloc(sizeof(char), buf_size);
+    if (recv(sock_fd, buf, buf_size, 0) < 0) {
+        perror("Receive response error");
+        exit(1);
+    }
+
+    printf("Receive response: %s\n", buf);
+
+    if (strcmp(buf, "OK") != 0) {
+        printf("Server error\n");
+        exit(1);
+    }
+
+    send_file(sock_fd, file_data, file_size);
+
+    memset(buf, 0, buf_size);
+
+    if (recv(sock_fd, buf, buf_size, 0) < 0) {
+        perror("Receive response error");
+        exit(1);
+    }
+
+    printf("Receive response: %s\n", buf);
+
+    if (strcmp(buf, "OK") != 0) {
+        printf("Server error\n");
+        exit(1);
+    }
 
     close(sock_fd);
 }

@@ -123,6 +123,8 @@ void payload(int client_fd) {
         send_error(client_fd, "Server error: save file error");
     }
 
+    send(client_fd, ok_msg, strlen(ok_msg), 0);
+    
     logg("Save file ok");
 
     close(client_fd);
@@ -131,9 +133,9 @@ void payload(int client_fd) {
 
 void pids_gc(int *count_clients) {
     if (*count_clients > PID_LIMIT) {
-        printf("-- Start waiting for pids\n");
+        logg("-- Start waiting for pids");
         while (wait(NULL) > 0);
-        printf("-- Finish waiting for pids\n");
+        logg("-- Finish waiting for pids");
         *count_clients = 0;
     }
 }
