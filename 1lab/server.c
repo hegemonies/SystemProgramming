@@ -18,64 +18,112 @@ char *PATH_STORAGE;
 struct dirent *pDirent;
 DIR *pDir;
 
-void save_file(char *filename, char *data) {
+typedef int bool;
+#define true 1
+#define false 0
+
+void logg(char *message) {
+    if (message != NULL) {
+        printf("[%d] - %s\n", getpid(), message);
+    }
+}
+
+bool save_file(char *filename, char *data) {
     // TODO: save filename with data to PATH_STORAGE
+    return true;
 }
 
-void get_filename_and_size_from(char *recv_buf, char **filename, int *file_size) {
-    char *lexem = strtok(recv_buf, ";");
-    printf("Get lexem1: %s\n", lexem);
-
-    if (lexem == NULL) {
-        filename = NULL;
-        file_size = NULL;
-        return;
-    }
-
-    // *filename = malloc(sizeof(char) * sizeof(lexem));
-    *filename = calloc(sizeof(char), strlen(lexem));
-    memcpy(*filename, lexem, strlen(lexem));
-    printf("Filename: %s\n", *filename);
-
-    lexem = strtok(NULL, ";");
-    printf("Get lexem2: %s\n", lexem);
-
-    if (lexem == NULL) {
-        filename = NULL;
-        file_size = NULL;
-        return;
-    }
-
-    // file_size = malloc(sizeof(int) * 1);
-    *file_size = atoi(lexem);
-    printf("File size: %d\n", *file_size);
-}
-
-void payload(int client_fd) {
-    printf("Payload on proc with pid #%d\n", getpid());
-
-    // Receive meta data with info about size and name of file
+bool recv_filename_and_size_from(int client_fd, char **filename, int *file_size) {
     int recv_buf_size = 1024;
     char *recv_buf = (char *) calloc(recv_buf_size, sizeof(char));
     if (recv(client_fd, recv_buf, recv_buf_size, 0) < 0) {
         perror("Receive data error");
-        return;
+        return false;
     }
-    
+
+    char *lexem = strtok(recv_buf, ";");
+    // printf("Get lexem1: %s\n", lexem);
+    if (lexem == NULL) {
+        logg("First lexem is null");
+        return false;
+    }
+
+    *filename = calloc(sizeof(char), strlen(lexem));
+    memcpy(*filename, lexem, strlen(lexem));
+    // printf("Filename: %s\n", *filename);
+
+    lexem = strtok(NULL, ";");
+    // printf("Get lexem2: %s\n", lexem);
+    if (lexem == NULL) {
+        logg("Second lexem is null");
+        return false;
+    }
+
+    *file_size = atoi(lexem);
+    // printf("File size: %d\n", *file_size);
+
+    return true;
+}
+
+void send_error(int client_fd, char *error_msg) {
+    if (error_msg != NULL) {
+        char *f_msg = "Send error: ";
+        char *result_msg = calloc(sizeof(char), strlen(f_msg) + strlen(error_msg));
+        strcat(result_msg, f_msg);
+        strcat(result_msg, error_msg);
+        logg(result_msg);
+        send(client_fd, error_msg, strlen(error_msg), 0);
+    } else {
+        char *msg = "Server error.";
+        send(client_fd, msg, strlen(msg), 0);
+    }
+
+    close(client_fd);
+    exit(1);
+}
+
+bool recv_file_data(int client_fd, char **file_data, int file_size) {
+    char *recv_buf = calloc(sizeof(char), file_size);
+
+    int count_recv_data = recv(client_fd, recv_buf, file_size, 0);
+    if (count_recv_data < 0) {
+        perror("Receive error");
+        return false;
+    }
+
+    *file_data = calloc(sizeof(char), count_recv_data);
+    memcpy(file_data, recv_buf, count_recv_data);
+    return true;
+}
+
+void payload(int client_fd) {
+    // printf("Payload on proc with pid #%d\n", getpid());
+    logg("Start payload");
+
+    // Receive meta data with info about size and name of file
     char *filename;
     int file_size;
-    get_filename_and_size_from(recv_buf, &filename, &file_size);
 
-    if (filename == NULL || file_size == 0) {
-        char *error_msg = "Error meta data in request.";
-        send(client_fd, error_msg, strlen(error_msg), 0);
-        return;
+    if (recv_filename_and_size_from(client_fd, &filename, &file_size) == false) {
+        send_error(client_fd, "Error meta data in request.");
     }
 
-    printf(" Receive meta data: %s;%d;\n", filename, file_size);
+    printf("[%d] - Receive meta data: %s;%d;\n", getpid(), filename, file_size);
 
     char *ok_msg = "OK";
     send(client_fd, ok_msg, strlen(ok_msg), 0);
+
+    char *file_data;
+    if (recv_file_data(client_fd, &file_data, file_size) == false) {
+        send_error(client_fd, "Error file data.");
+    }
+    logg("Receive file data ok");
+
+    if (save_file(filename, file_data) == false) {
+        send_error(client_fd, "Server error: save file error");
+    }
+
+    logg("Save file ok");
 
     close(client_fd);
     exit(0);
@@ -83,15 +131,16 @@ void payload(int client_fd) {
 
 void pids_gc(int *count_clients) {
     if (*count_clients > PID_LIMIT) {
-        printf("Start waiting for pids\n");
+        printf("-- Start waiting for pids\n");
         while (wait(NULL) > 0);
-        printf("Finish waiting for pids\n");
+        printf("-- Finish waiting for pids\n");
         *count_clients = 0;
     }
 }
 
 void start_server(int server_fd) {
-    printf("Start server on pid #%d\n", getpid());
+    // printf("Start server on pid #%d\n", getpid());
+    logg("Start server");
 
     int client_fd;
     struct sockaddr_storage client_addr;
@@ -100,9 +149,9 @@ void start_server(int server_fd) {
     int count_clients = 0;
 
     while(1) {
-        printf("Waiting for clients\n");
+        logg("Waiting for clients");
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
-        printf("New client with fd = %d\n", client_fd);
+        printf("[%d] New client with fd = %d\n", getpid(), client_fd);
         if (client_fd < 0) {
             perror("Accept error");
             continue;
@@ -122,7 +171,7 @@ void start_server(int server_fd) {
 }
 
 void bootstrap_server() {
-    printf("Bootstrap server\n");
+    logg("Bootstrap server");
     struct addrinfo hints, *server_info;
 
     memset(&hints, 0, sizeof hints);
@@ -136,7 +185,7 @@ void bootstrap_server() {
     }
 
     int server_fd = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-    printf("File descriptor: %d\n", server_fd);
+    printf("[%d] File descriptor: %d\n", getpid(), server_fd);
     if (server_fd < 0) {
         perror("Socket error");
         exit(1);

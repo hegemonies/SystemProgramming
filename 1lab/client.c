@@ -18,8 +18,26 @@ void read_file() {
 
 }
 
+void get_filename_from_path(char **filename) {
+    if (strstr(PATH_TO_FILE, "/") != NULL) {
+        strtok(PATH_TO_FILE, "/");
+        char *buf;
+        while ((buf = strtok(NULL, "/")) != NULL) {
+            *filename = calloc(sizeof(char), strlen(buf));
+            memcpy(*filename, buf, strlen(buf));
+        }
+    } else {
+        *filename = calloc(sizeof(char), strlen(PATH_TO_FILE));
+        memcpy(*filename, PATH_TO_FILE, strlen(PATH_TO_FILE));
+    }
+
+    printf("Filename: %s\n", *filename);
+}
+
 void send_meta_data(int sock_fd) {
-    char *meta_data = "FILENAME;14151;";
+    char *filename;
+    get_filename_from_path(&filename);
+    char *meta_data = "test.c;14151;";
 
     if (send(sock_fd, meta_data, strlen(meta_data), 0) < 0) {
         perror("Send file error");
