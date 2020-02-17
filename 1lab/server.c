@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <dirent.h>
-#include "protocol.h"
 
 #define SERVER_HOST "localhost"
 #define PID_LIMIT 5
@@ -23,9 +22,9 @@ void save_file(char *filename, char *data) {
     // TODO: save filename with data to PATH_STORAGE
 }
 
-void get_filename_and_size_from(char *recv_buf, char *filename, int *file_size) {
+void get_filename_and_size_from(char *recv_buf, char **filename, int *file_size) {
     char *lexem = strtok(recv_buf, ";");
-    printf("Get lexem: %s\n", lexem);
+    printf("Get lexem1: %s\n", lexem);
 
     if (lexem == NULL) {
         filename = NULL;
@@ -33,12 +32,13 @@ void get_filename_and_size_from(char *recv_buf, char *filename, int *file_size) 
         return;
     }
 
-    filename = malloc(sizeof(char) * strlen(lexem));
-    memcpy(filename, lexem, strlen(lexem));
-    printf("Filename: %s\n", filename);
+    // *filename = malloc(sizeof(char) * sizeof(lexem));
+    *filename = calloc(sizeof(char), strlen(lexem));
+    memcpy(*filename, lexem, strlen(lexem));
+    printf("Filename: %s\n", *filename);
 
     lexem = strtok(NULL, ";");
-    printf("Get lexem: %s\n", lexem);
+    printf("Get lexem2: %s\n", lexem);
 
     if (lexem == NULL) {
         filename = NULL;
@@ -46,7 +46,7 @@ void get_filename_and_size_from(char *recv_buf, char *filename, int *file_size) 
         return;
     }
 
-    file_size = malloc(sizeof(int) * 1);
+    // file_size = malloc(sizeof(int) * 1);
     *file_size = atoi(lexem);
     printf("File size: %d\n", *file_size);
 }
@@ -61,18 +61,18 @@ void payload(int client_fd) {
         perror("Receive data error");
         return;
     }
-    // printf("Receive data: %s.\n", recv_buf);
+    
     char *filename;
-    int *file_size;
-    get_filename_and_size_from(recv_buf, filename, file_size);
+    int file_size;
+    get_filename_and_size_from(recv_buf, &filename, &file_size);
 
-    if (filename == NULL || file_size == NULL) {
+    if (filename == NULL || file_size == 0) {
         char *error_msg = "Error meta data in request.";
         send(client_fd, error_msg, strlen(error_msg), 0);
         return;
     }
 
-    printf(" Receive meta data: %s %d\n", filename, *file_size);
+    printf(" Receive meta data: %s;%d;\n", filename, file_size);
 
     char *ok_msg = "OK";
     send(client_fd, ok_msg, strlen(ok_msg), 0);
@@ -122,7 +122,7 @@ void start_server(int server_fd) {
 }
 
 void bootstrap_server() {
-    printf("Bootstrap server");
+    printf("Bootstrap server\n");
     struct addrinfo hints, *server_info;
 
     memset(&hints, 0, sizeof hints);
