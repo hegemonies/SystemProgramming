@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <math.h>
+#include <sys/wait.h>
 
 #define SERVER_HOST "localhost"
 
@@ -16,10 +17,10 @@ char *SERVER_PORT;
 char *PATH_TO_FILE;
 
 void read_file(char **file_data, int *file_size) {
-    FILE *file = fopen(PATH_TO_FILE, "r");
+    FILE *file;
+    file = fopen(PATH_TO_FILE, "r+");
 
     if (file == NULL) {
-        fclose(file);
         printf("Error read file: %s\n", PATH_TO_FILE);
         exit(1);
     }
@@ -140,7 +141,7 @@ void bootstrap_client() {
     send_file(sock_fd, file_data, file_size);
 
     memset(buf, 0, buf_size);
-
+    printf("waiting for response from server\n");
     if (recv(sock_fd, buf, buf_size, 0) < 0) {
         perror("Receive response error");
         exit(1);

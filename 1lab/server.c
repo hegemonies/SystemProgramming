@@ -60,7 +60,7 @@ bool recv_filename_and_size_from(int client_fd, char **filename, int *file_size)
     }
 
     char *lexem = strtok(recv_buf, ";");
-    // printf("Get lexem1: %s\n", lexem);
+    
     if (lexem == NULL) {
         logg("First lexem is null");
         return false;
@@ -167,7 +167,6 @@ void pids_gc(int *count_clients) {
 }
 
 void start_server(int server_fd) {
-    // printf("Start server on pid #%d\n", getpid());
     logg("Start server");
 
     int client_fd;
@@ -213,7 +212,7 @@ void bootstrap_server() {
     }
 
     int server_fd = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-    printf("[%d] File descriptor: %d\n", getpid(), server_fd);
+    // printf("[%d] File descriptor: %d\n", getpid(), server_fd);
     if (server_fd < 0) {
         perror("Socket error");
         exit(1);
@@ -286,7 +285,7 @@ void server_configure(int argc, char *argv[]) {
         }
     }
 
-    printf("Configuration ok: SERVER_PORT = %s; PATH_STORAGE = %s\n", SERVER_PORT, PATH_STORAGE);
+    printf("Configuration: SERVER_PORT = %s; PATH_STORAGE = %s\n", SERVER_PORT, PATH_STORAGE);
 }
 
 int main(int argc, char *argv[]) {
