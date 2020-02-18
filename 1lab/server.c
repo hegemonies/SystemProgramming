@@ -28,8 +28,26 @@ void logg(char *message) {
     }
 }
 
-bool save_file(char *filename, char *data) {
-    // TODO: save filename with data to PATH_STORAGE
+bool save_file(char *filename, char *data, int data_size) {
+    char *file_path = calloc(sizeof(char), strlen(PATH_STORAGE) + strlen(filename) + 2);
+    strcat(file_path, PATH_STORAGE);
+    strcat(file_path, "/");
+    strcat(file_path, filename);
+    printf("[%d] Save file to %s\n", getpid(), file_path);
+
+    FILE *file;
+    file = fopen(file_path, "w+");
+
+    if (file == NULL) {
+        logg("Error save file");
+        return false;
+    }
+
+    fputs(data, file);
+    fflush(file);
+
+    fclose(file);
+
     return true;
 }
 
@@ -83,7 +101,7 @@ void send_error(int client_fd, char *error_msg) {
 }
 
 bool recv_file_data(int client_fd, char **file_data, int file_size) {
-    char *recv_buf = calloc(sizeof(char), file_size);
+    char *recv_buf = calloc(sizeof(char), file_size + 1);
 
     int count_recv_data = recv(client_fd, recv_buf, file_size, 0);
     if (count_recv_data < 0) {
@@ -91,9 +109,21 @@ bool recv_file_data(int client_fd, char **file_data, int file_size) {
         return false;
     }
 
-    *file_data = calloc(sizeof(char), count_recv_data);
-    memcpy(file_data, recv_buf, count_recv_data);
+    // printf("[%d] - Count recv data: %d\n", getpid(), count_recv_data);
+
+    *file_data = calloc(sizeof(char), count_recv_data + 2);
+    memcpy(*file_data, recv_buf, count_recv_data);
+    strcat(*file_data, "\0");
+
     return true;
+}
+
+void send_ok(int sock_fd) {
+    char *ok_msg = "OK";
+    if (send(sock_fd, ok_msg, strlen(ok_msg), 0) < 0) {
+        perror("Send ok error");
+        exit(1);
+    }
 }
 
 void payload(int client_fd) {
@@ -110,22 +140,18 @@ void payload(int client_fd) {
 
     printf("[%d] - Receive meta data: %s;%d;\n", getpid(), filename, file_size);
 
-    char *ok_msg = "OK";
-    send(client_fd, ok_msg, strlen(ok_msg), 0);
+    send_ok(client_fd);
 
     char *file_data;
     if (recv_file_data(client_fd, &file_data, file_size) == false) {
         send_error(client_fd, "Error file data.");
     }
-    logg("Receive file data ok");
 
-    if (save_file(filename, file_data) == false) {
+    if (save_file(filename, file_data, file_size) == false) {
         send_error(client_fd, "Server error: save file error");
     }
 
-    send(client_fd, ok_msg, strlen(ok_msg), 0);
-    
-    logg("Save file ok");
+    send_ok(client_fd);
 
     close(client_fd);
     exit(0);
@@ -193,14 +219,14 @@ void bootstrap_server() {
         exit(1);
     }
 
-    if (bind(server_fd, server_info->ai_addr, server_info->ai_addrlen) < 0) {
-        perror("Bind error");
-        exit(1);
-    }
-
     int yes=1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &yes, sizeof yes) < 0) {
         perror("Set socket opt error");
+        exit(1);
+    }
+
+    if (bind(server_fd, server_info->ai_addr, server_info->ai_addrlen) < 0) {
+        perror("Bind error");
         exit(1);
     }
 
