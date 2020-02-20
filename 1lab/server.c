@@ -175,8 +175,9 @@ void start_server(int server_fd) {
 
     int count_clients = 0;
 
+    logg("Waiting for clients");
+    
     while(1) {
-        logg("Waiting for clients");
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
         printf("[%d] New client with fd = %d\n", getpid(), client_fd);
         if (client_fd < 0) {
