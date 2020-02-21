@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <math.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #define SERVER_HOST "localhost"
 
@@ -23,17 +24,9 @@ void start_payload(int sock_fd) {
     char *buf = calloc(sizeof(char), buf_size);
 
     for (int i = 0; i < COUNT_I; i++) {
-        // int radix = (int)((ceil(log10(i)) + 1) * sizeof(char));
-        // char s_i[radix];
-        // sprintf(s_i, "%d", i);
+        sleep(i);
         sprintf(buf, "%d", i);
-
         printf("Send i #%d.\n", i);
-
-        // if (send(sock_fd, s_i, radix, 0) < 0) {
-        //     perror("Send error");
-        //     exit(1);
-        // }
         if (send(sock_fd, buf, buf_size, 0) < 0) {
             perror("Send error");
             exit(1);
