@@ -198,53 +198,9 @@ void start_server(int server_fd) {
     }
 }
 
-void bootstrap_server() {
-    logg("Bootstrap server");
-    struct addrinfo hints, *server_info;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-
-    if (getaddrinfo(NULL, SERVER_PORT, &hints, &server_info) != 0) {
-        perror("Get address info error");
-        exit(1);
-    }
-
-    int server_fd = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-    // printf("[%d] File descriptor: %d\n", getpid(), server_fd);
-    if (server_fd < 0) {
-        perror("Socket error");
-        exit(1);
-    }
-
-    int yes=1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &yes, sizeof yes) < 0) {
-        perror("Set socket opt error");
-        exit(1);
-    }
-
-    if (bind(server_fd, server_info->ai_addr, server_info->ai_addrlen) < 0) {
-        perror("Bind error");
-        exit(1);
-    }
-
-    if (listen(server_fd, 10) < 0) {
-        perror("Listen error");
-        exit(1);
-    }
-    
-    start_server(server_fd);
-
-    close(server_fd);
-    freeaddrinfo(server_info);
-}
-
 void print_help() {
     printf("Help:\n");
-    printf("./server -p <port> -d <storage dictionary>\n\n");
-    printf("-p        Port of the server\n");
+    printf("./server -d <storage dictionary>\n\n");
     printf("-d        Path to storage dictionary\n");
 }
 
@@ -253,20 +209,67 @@ void error_arguments() {
     print_help();
 }
 
+int get_socket_port(int fd) {
+  struct sockaddr_in client_addr;
+  socklen_t len;
+
+  getsockname(fd, (struct sockaddr *) &client_addr, &len);
+
+  return ntohs(client_addr.sin_port);
+}
+
+in_addr_t create_s_addr(const char *ip_addr) {
+    int s_addr;
+    inet_pton(AF_INET, ip_addr, &s_addr);
+    return (in_addr_t) s_addr;
+}
+
+int init_server(char *host, int port) {
+    int ret;
+    struct sockaddr_in addr;
+    int server_socket;
+
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("Socket error");
+        exit(1);
+    }
+
+    int yes = 1;
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &yes, sizeof yes) < 0) {
+        perror("Set socket opt error");
+        exit(1);
+    }
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = create_s_addr(host);
+
+    if ((ret = bind(server_socket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in))) == -1) {
+        perror("Bind error");
+        close(server_socket);
+        exit(1);
+    }
+
+    if ((ret = listen(server_socket, 10)) == -1) {
+        perror("Listen error");
+        close(server_socket);
+        exit(1);
+    }
+
+    printf("Server port: %d\n", get_socket_port(server_socket));
+    return server_socket;
+}
+
 void server_configure(int argc, char *argv[]) {
-    if (argc < 5) {
+    if (argc < 3) {
         error_arguments();
         exit(1);
     }
 
     int result = 0;
 
-    while ((result = getopt(argc, argv, "p:d:")) != -1) {
+    while ((result = getopt(argc, argv, "d:")) != -1) {
         switch (result) {
-        case 'p':
-            SERVER_PORT = (char *) calloc(sizeof(optarg), sizeof(char));
-            SERVER_PORT = optarg;
-            break;
 
         case 'd':
             PATH_STORAGE = (char *) calloc(sizeof(optarg), sizeof(char));
@@ -286,12 +289,13 @@ void server_configure(int argc, char *argv[]) {
         }
     }
 
-    printf("Configuration: SERVER_PORT = %s; PATH_STORAGE = %s\n", SERVER_PORT, PATH_STORAGE);
+    printf("Configuration: path of the storage = %s\n", SERVER_PORT, PATH_STORAGE);
 }
 
 int main(int argc, char *argv[]) {
     server_configure(argc, argv);
-    bootstrap_server();
+    int server_socket = init_server("127.0.0.1", 0);
+    start_server(server_socket);
 
     return 0;
 }
