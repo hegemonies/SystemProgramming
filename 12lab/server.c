@@ -90,88 +90,54 @@ void start_server(int server_fd) {
     }
 }
 
-void bootstrap_server() {
-    logg("Bootstrap server");
+int get_socket_port(int fd) {
+  struct sockaddr_in client_addr;
+  socklen_t len;
 
-    struct addrinfo hints, *server_info;
+  getsockname(fd, (struct sockaddr *) &client_addr, &len);
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
+  return ntohs(client_addr.sin_port);
+}
 
-    if (getaddrinfo(NULL, SERVER_PORT, &hints, &server_info) != 0) {
-        perror("Get address info error");
-        exit(1);
-    }
+int init_server(char *host, int port) {
+    int ret;
+    struct sockaddr_in addr;
+    int server_socket;
 
-    int server_fd = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-    // printf("[%d] File descriptor: %d\n", getpid(), server_fd);
-    if (server_fd < 0) {
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("Socket error");
         exit(1);
     }
 
-    int yes=1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &yes, sizeof yes) < 0) {
+    int yes = 1;
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &yes, sizeof yes) < 0) {
         perror("Set socket opt error");
         exit(1);
     }
 
-    if (bind(server_fd, server_info->ai_addr, server_info->ai_addrlen) < 0) {
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = create_s_addr(host);
+
+    if ((ret = bind(server_socket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in))) == -1) {
         perror("Bind error");
+        close(server_socket);
         exit(1);
     }
 
-    if (listen(server_fd, 10) < 0) {
+    if ((ret = listen(server_socket, 10)) == -1) {
         perror("Listen error");
-        exit(1);
-    }
-    
-    start_server(server_fd);
-
-    close(server_fd);
-    freeaddrinfo(server_info);
-}
-
-void print_help() {
-    printf("Help:\n");
-    printf("./server -p <port>\n");
-    printf("-p        Port of the server\n");
-}
-
-void error_arguments() {
-    fprintf(stderr, "Error argumets\n\n");
-    print_help();
-}
-
-void server_configure(int argc, char *argv[]) {
-    if (argc < 3) {
-        error_arguments();
+        close(server_socket);
         exit(1);
     }
 
-    int result = 0;
-
-    while ((result = getopt(argc, argv, "p:")) != -1) {
-        switch (result) {
-        case 'p':
-            SERVER_PORT = (char *) calloc(sizeof(optarg), sizeof(char));
-            SERVER_PORT = optarg;
-            break;
-
-        default:
-            error_arguments();
-            break;
-        }
-    }
-
-    printf("Configuration: SERVER_PORT = %s\n", SERVER_PORT);
+    printf("Server port: %d\n", get_socket_port(server_socket));
+    return server_socket;
 }
 
 int main(int argc, char *argv[]) {
-    server_configure(argc, argv);
-    bootstrap_server();
+    int server_socket = init_server("127.0.0.1", 0);
+    start_server(server_socket);
 
     return 0;
 }
