@@ -25,6 +25,12 @@ void logg(char *message) {
     }
 }
 
+in_addr_t create_s_addr(const char *ip_addr) {
+    int s_addr;
+    inet_pton(AF_INET, ip_addr, &s_addr);
+    return (in_addr_t) s_addr;
+}
+
 void payload(int client_fd) {
     printf("[%d] Start receive data from %d\n", getpid(), client_fd);
 
