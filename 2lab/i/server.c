@@ -11,10 +11,13 @@
 #include <dirent.h>
 
 #define SERVER_HOST "localhost"
+#define THREAD_LIMIT 50
 
 typedef int bool;
 #define true 1
 #define false 0
+
+pthread_attr_t pthread_attr;
 
 void logg(char *message) {
     if (message != NULL) {
@@ -28,7 +31,7 @@ in_addr_t create_s_addr(const char *ip_addr) {
     return (in_addr_t) s_addr;
 }
 
-void payload(void *attr) {
+void *payload(void *attr) {
     int client_fd = (int)attr;
 
     printf("[%d] Start receive data from %d\n", getpid(), client_fd);
@@ -50,11 +53,22 @@ void payload(void *attr) {
     }
 
     close(client_fd);
-    exit(0);
+    pthread_exit(0);
+}
+
+void thread_gc(int threads[]) {
+    printf("[%d] -- GC start", getpid());
+    for (int i = 0; i < THREAD_LIMIT; i++) {
+        printf("[%d] -- Join of %d thread", getpid(), threads[i]);
+        pthread_join(threads[i], NULL);
+    }
+    printf("[%d] -- GC finish", getpid());
 }
 
 void start_server(int server_fd) {
     logg("Start server");
+
+    pthread_attr_init(&pthread_attr);
 
     int client_fd;
     struct sockaddr_storage client_addr;
@@ -64,6 +78,8 @@ void start_server(int server_fd) {
 
     logg("Waiting for clients");
 
+    int threads[THREAD_LIMIT];
+
     while(1) {
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
         printf("[%d] New client with fd = %d\n", getpid(), client_fd);
@@ -72,14 +88,18 @@ void start_server(int server_fd) {
             perror("Accept error");
             continue;
         }
+
         count_clients++;
 
-        pid_t pid = fork();
+        pthread_t thread;
+        if (pthread_create(&thread, &pthread_attr, payload, (void *)client_fd)) {
+            perror("Error pthread_create");
+        }
 
-        if (pid < 0) {
-            perror("Error fork");
-        } else if (pid == 0) {
-            payload(client_fd);
+        threads[count_clients] = thread;
+        if (count_clients > THREAD_LIMIT - 2) {
+            thread_gc(threads);
+            count_clients = 0;
         }
     }
 }

@@ -12,7 +12,7 @@ all:
 server:
 	rm -rf server
 	@echo "Compiling server.c"
-	gcc --std=c99 -lpthread -Wall server.c -o server -O3 -g
+	gcc --std=c99 -pthread -Wall server.c -o server -O3 -g
 
 client:
 	rm -rf client
