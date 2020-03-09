@@ -1,8 +1,8 @@
 #include <stdio.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -11,9 +11,6 @@
 #include <dirent.h>
 
 #define SERVER_HOST "localhost"
-#define PID_LIMIT 5
-
-char *SERVER_PORT;
 
 typedef int bool;
 #define true 1
@@ -31,7 +28,9 @@ in_addr_t create_s_addr(const char *ip_addr) {
     return (in_addr_t) s_addr;
 }
 
-void payload(int client_fd) {
+void payload(void *attr) {
+    int client_fd = (int)attr;
+
     printf("[%d] Start receive data from %d\n", getpid(), client_fd);
 
     int buf_size = 128;
@@ -52,15 +51,6 @@ void payload(int client_fd) {
 
     close(client_fd);
     exit(0);
-}
-
-void pids_gc(int *count_clients) {
-    if (*count_clients > PID_LIMIT) {
-        logg("-- Start waiting for pids");
-        while (wait(NULL) > 0);
-        logg("-- Finish waiting for pids");
-        *count_clients = 0;
-    }
 }
 
 void start_server(int server_fd) {
@@ -90,8 +80,6 @@ void start_server(int server_fd) {
             perror("Error fork");
         } else if (pid == 0) {
             payload(client_fd);
-        } else {
-            pids_gc(&count_clients);
         }
     }
 }

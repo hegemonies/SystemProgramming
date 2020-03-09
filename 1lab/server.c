@@ -224,7 +224,7 @@ in_addr_t create_s_addr(const char *ip_addr) {
     return (in_addr_t) s_addr;
 }
 
-int init_server(char *host, int port) {
+int bootstrap_server(char *host, int port) {
     int ret;
     struct sockaddr_in addr;
     int server_socket;
@@ -294,7 +294,7 @@ void server_configure(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
     server_configure(argc, argv);
-    int server_socket = init_server("127.0.0.1", 0);
+    int server_socket = bootstrap_server("127.0.0.1", 0);
     start_server(server_socket);
 
     return 0;
