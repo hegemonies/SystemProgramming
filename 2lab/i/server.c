@@ -92,7 +92,7 @@ void start_server(int server_fd) {
         count_clients++;
 
         pthread_t thread;
-        if (pthread_create(&thread, &pthread_attr, payload, (void *)client_fd)) {
+        if (pthread_create(&thread, NULL, payload, (void *)client_fd) != 0) {
             perror("Error pthread_create");
         }
 
