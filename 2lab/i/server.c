@@ -11,7 +11,7 @@
 #include <dirent.h>
 
 #define SERVER_HOST "localhost"
-#define THREAD_LIMIT 50
+#define THREAD_LIMIT 5
 
 typedef int bool;
 #define true 1
@@ -56,10 +56,10 @@ void *payload(void *attr) {
     pthread_exit(0);
 }
 
-void thread_gc(int threads[]) {
+void thread_gc(pthread_t threads[]) {
     printf("[%d] -- GC start", getpid());
     for (int i = 0; i < THREAD_LIMIT; i++) {
-        printf("[%d] -- Join of %d thread", getpid(), threads[i]);
+        printf("[%d] -- Join of %ld thread\n", getpid(), threads[i]);
         pthread_join(threads[i], NULL);
     }
     printf("[%d] -- GC finish", getpid());
@@ -78,7 +78,7 @@ void start_server(int server_fd) {
 
     logg("Waiting for clients");
 
-    int threads[THREAD_LIMIT];
+    pthread_t threads[THREAD_LIMIT];
 
     while(1) {
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
@@ -89,17 +89,17 @@ void start_server(int server_fd) {
             continue;
         }
 
-        count_clients++;
-
         pthread_t thread;
         if (pthread_create(&thread, NULL, payload, (void *)client_fd) != 0) {
             perror("Error pthread_create");
         }
 
         threads[count_clients] = thread;
-        if (count_clients > THREAD_LIMIT - 2) {
+        if (count_clients == THREAD_LIMIT - 1) {
             thread_gc(threads);
             count_clients = 0;
+        } else {
+            count_clients++;
         }
     }
 }

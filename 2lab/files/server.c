@@ -33,10 +33,10 @@ void logg(char *message) {
     pthread_mutex_unlock(&mutex);
 }
 
-void thread_gc(int threads[]) {
+void thread_gc(pthread_t threads[]) {
     printf("[%d] -- GC start", getpid());
     for (int i = 0; i < THREAD_LIMIT; i++) {
-        printf("[%d] -- Join of %d thread", getpid(), threads[i]);
+        printf("[%d] -- Join of %ld thread\n", getpid(), threads[i]);
         pthread_join(threads[i], NULL);
     }
     printf("[%d] -- GC finish", getpid());
@@ -45,7 +45,7 @@ void thread_gc(int threads[]) {
 void save_file(char *filename, char *data, int data_size) {
     pthread_mutex_lock(&mutex);
     fputs(data, file);
-    // fclose(file);
+    fflush(file);
     pthread_mutex_unlock(&mutex);
 }
 
@@ -148,30 +148,28 @@ void start_server(int server_fd) {
 
     logg("Waiting for clients");
 
-    int threads[THREAD_LIMIT];
-
-    if (pthread_mutex_init(&mutex, NULL) != 0) {
-        perror("Mutex init error");
-        exit(1);
-    }
+    pthread_t threads[THREAD_LIMIT];
 
     while(1) {
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
         printf("[%d] New client with fd = %d\n", getpid(), client_fd);
+
         if (client_fd < 0) {
             perror("Accept error");
             continue;
         }
-        count_clients++;
 
         pthread_t thread;
         if (pthread_create(&thread, NULL, payload, (void *)client_fd) != 0) {
             perror("Error pthread_create");
         }
+
         threads[count_clients] = thread;
-        if (count_clients > THREAD_LIMIT - 2) {
+        if (count_clients == THREAD_LIMIT - 1) {
             thread_gc(threads);
             count_clients = 0;
+        } else {
+            count_clients++;
         }
     }
 }
